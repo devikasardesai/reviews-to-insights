@@ -13,10 +13,10 @@ OUT = Path("outputs"); OUT.mkdir(exist_ok=True)
 
 # ---- fee/charge lexicon (what users complain about) ----
 FEES = {
- "Subscription auto-renewal / charged after cancelling": r"auto[- ]?renew|renewal|renewed|still charged|charged again|cancel(l)?ed?.{0,40}(charge|deduct)|unsubscrib",
- "GST / tax added on top of listed price": r"\bgst\b|\btax(es)?\b|extra (charge|amount)|added (charge|amount)|more than (the )?(price|399|1999)|hidden (charge|fee|cost)",
- "Unexpected deduction / refund difficulty": r"deduct|refund|money (was )?(taken|cut)|debited|charged without",
- "Plan price / Go vs Plus confusion": r"\bgo plan\b|chatgpt go|₹ ?\d{3,}|rs\.? ?\d{3,}|\b399\b|\b1999\b|free trial|trial",
+ "Subscription auto-renewal / charged after cancelling": r"auto[- ]?renew|renewal|renewed|still charged|charged again|cancel(?:l)?ed?.{0,40}(?:charge|deduct)|unsubscrib",
+ "GST / tax added on top of listed price": r"\bgst\b|\btax(?:es)?\b|extra (?:charge|amount)|added (?:charge|amount)|more than (?:the )?(?:price|399|1999)|hidden (?:charge|fee|cost)",
+ "Unexpected deduction / refund difficulty": r"deduct|refund|money (?:was )?(?:taken|cut)|debited|charged without",
+ "Plan price / Go vs Plus confusion": r"(?=.*(?:\bprice\b|\bamount\b|\bgo plan\b|\bchatgpt go\b|₹ ?\d{3,}|rs\.? ?\d{3,}|\b399\b|\b1999\b|free trial|\btrial\b))(?=.*(?:\bshown\b|\blisted\b|\bsaid\b|\bdifferent\b|\bmore\b|\bextra\b|\bwrong\b|\bhigher\b|\bcharged\b|\bdeducted\b))",
 }
 MONEY = re.compile(r"charg|deduct|debit|refund|gst|tax|price|pay|billing|subscription|renew|₹|\brs\b|money|plan|upi", re.I)
 STOP = {"app","chatgpt","gpt","chat","openai","use","using","just","really","very","good","like","one","get","also"}
@@ -60,9 +60,14 @@ def pick_quotes(df, themes, n=3):
 def detect_fee(df):
     neg = df[df.rating <= 3]
     scores = {}
-    for name, pat in FEES.items():
-        m = neg[neg.text.str.contains(pat, case=False, regex=True)]
+    remaining = neg
+    for name in ("GST / tax added on top of listed price",
+                 "Subscription auto-renewal / charged after cancelling",
+                 "Unexpected deduction / refund difficulty",
+                 "Plan price / Go vs Plus confusion"):
+        m = remaining[remaining.text.str.contains(FEES[name], case=False, regex=True)]
         scores[name] = m
+        remaining = remaining.drop(m.index)
     best = max(scores, key=lambda k: len(scores[k]))
     m = scores[best]
     ex = m[m.text.str.len().between(40, 240)].head(2).text.str.strip().tolist()
